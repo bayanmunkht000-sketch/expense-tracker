@@ -1,5 +1,6 @@
 import json
 from datetime import date
+from datetime import datetime
 
 def load_expenses():
     try:
@@ -9,6 +10,9 @@ def load_expenses():
     except FileNotFoundError:
         expenses = []
         return expenses
+    except json.JSONDecodeError:
+        print("Expense data is corrupted.")
+        return []
 
 def save_expenses(expenses):
     with open('expenses.json','w') as file:
@@ -30,14 +34,7 @@ def add_expense(expenses):
             continue
         break
 
-    while True:
-        try:
-            amount = float(input("Enter amount: "))
-            if amount <= 0:
-                raise ValueError
-            break
-        except ValueError:
-            print("Please enter a valid number.")
+    amount = positive_number("Enter amount: ")
 
     today = date.today().isoformat()
     expense = {
@@ -123,16 +120,17 @@ def edit_expense(expenses):
             continue
         break
 
-    while True:
-        try:
-            new_amount = float(input("Enter new amount: ").strip())
-            if new_amount <= 0:
-                raise ValueError
-            break
-        except ValueError:
-            print("Please enter a number.")
+    new_amount = positive_number("Enter new amount: ")
 
-    new_date = input("Enter new date: ").strip()
+    while True:
+        new_date = input("Enter new date: ").strip()
+        normalized_date = normalize_date(new_date)
+
+        if normalized_date is None:
+            print("Date can't be empty")
+            continue
+        new_date = normalized_date
+        break
 
     selected_expense["name"] = new_name
     selected_expense["category"] = new_category
@@ -157,11 +155,24 @@ def search_by_category(expenses):
 
 def search_by_amount(expenses):
     found = False
-    search_amount = float(input("Enter expense amount to search: "))
+
+    search_date = input("Enter date to search: ").strip()
+    search_date = normalize_date(search_date)
+
+    if search_date is None:
+        print("Date can't be empty")
+        return
+
     for expense in expenses:
-        if expense["amount"] == search_amount:
-            print(expense["name"], expense["category"], expense["amount"], expense["date"])
+        expense_date = normalize_date(expense.get("date",""))
+        if expense_date == search_date:
+            print(expense["name"],
+                  expense["category"],
+                  expense["amount"],
+                  expense.get["date","Unknown"]
+            )
             found = True
+
     if not found:
         print("No expense found")
     else:
@@ -225,6 +236,68 @@ def spending_by_category(expenses):
     for category, total in category_totals.items():
         print("===== Spending by category =====")
         print(category, total)
+
+def monthly_spending(expenses):
+    total = 0
+    found = False
+
+    search_month = input("Enter month to search: ").strip()
+
+    for expense in expenses:
+        date = expense.get("date","")
+
+        if date.startswith(search_month):
+            total += expense["amount"]
+            print(expense["name"], expense["category"], expense["amount"], expense["date"])
+            found = True
+    if not found:
+        print("month not found")
+        return
+    else:
+        print(f"Your total is in {search_month} is:", total)
+
+def daily_spending(expenses):
+    daily_total = {}
+
+    for expense in expenses:
+        raw_date = expense.get("date","")
+        date = normalize_date(raw_date)
+
+        if date is None:
+            continue
+
+        amount = expense["amount"]
+
+        if date not in daily_total:
+            daily_total[date] = 0
+
+        daily_total[date] += amount
+
+    for date, total in daily_total.items():
+            print(date, total)
+
+def normalize_date(date_text):
+    try:
+        date = datetime.strptime(date_text, "%Y-%m-%d")
+    except ValueError:
+        try :
+            date = datetime.strptime(date_text, "%Y/%m/%d")
+        except ValueError:
+            return None
+
+    return date.strftime("%Y-%m-%d")
+
+def positive_number(prompt):
+    while True:
+        try:
+            print("Please enter a positive number.")
+            positive = float(input(prompt))
+            if positive <= 0:
+                print("Negative number not accepted.")
+                continue
+            return positive
+        except ValueError:
+            print("Please enter a positive number.")
 def main():
     expenses = load_expenses()
     while True:
@@ -242,7 +315,10 @@ def main():
         print("8. Search by name")
         print("9. Show statistics")
         print("10. Spending by category")
-        print("11. Exit")
+        print("11. Search by Month")
+        print("12. Daily Spending")
+        print("13. Normalize date")
+        print("14. Exit")
         try:
             choice = int(input("Enter your choice: "))
         except ValueError:
@@ -269,6 +345,17 @@ def main():
         elif choice == 10:
             spending_by_category(expenses)
         elif choice == 11:
+            monthly_spending(expenses)
+        elif choice == 12:
+            daily_spending(expenses)
+        elif choice == 13:
+            normalized = normalize_date(input("Enter a date: "))
+
+            if normalized is None:
+                print("No normalized date")
+            else:
+                print("Your normalized date is:", normalized)
+        elif choice == 14:
             break
         else:
             print("Please enter a valid number.")
